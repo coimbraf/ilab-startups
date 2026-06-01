@@ -1,0 +1,8 @@
+"    </div>
+  );
+}
+
+// ─── Gerenciador de Aulas ────────────────────────────────────────────────────
+function LessonsManager() {
+  const [le
+<truncated 6396 bytes>

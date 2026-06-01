@@ -1,0 +1,2 @@
+"const fs = require('fs');\nconst logs = fs.readFileSync('C:/Users/biasi/.gemini/antigravity/brain/17b7d2b4-6d3b-4039-9122-94f0160290e2/.system_generated/logs/overview.txt', 'utf8');\n\nconst regex = /function InviteManager\\(\\) \\{[\\s\\S]*?export defaul
+<truncated 570 bytes>

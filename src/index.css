@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-fox: #FF6B00;
+  --color-gold: #D4AF37;
+  --color-teal: #1A8582;
+  --color-graphite: #363636;
+  --color-brown: #2A1617;
+  --color-navy: #29385C;
+  --color-cream: #FFFBEC;
+
+  --font-playfair: "Playfair Display", serif;
+  --font-montserrat: "Montserrat", sans-serif;
+  
+  --font-sans: var(--font-montserrat);
+
+  /* Z-index scale — sem valores arbitrários no código */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 20;
+  --z-sticky: 40;
+  --z-overlay: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+}
+
+/* ─── Reset & Base ─────────────────────────────────────────── */
+:root {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  @apply bg-[#FFFDF2] text-brown font-montserrat antialiased selection:bg-fox selection:text-white min-h-screen flex flex-col;
+}
+
+/* ─── Headings ─────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  @apply font-playfair font-bold text-brown;
+  text-wrap: balance;
+}
+
+/* ─── Focus Ring — acessibilidade padronizada ──────────────── */
+:focus-visible {
+  outline: 2px solid #FF6B00;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ─── Números tabulares globais ────────────────────────────── */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ─── Skeleton Loader ──────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,0.04) 25%,
+    rgba(0,0,0,0.08) 50%,
+    rgba(0,0,0,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(42, 22, 23, 0.15);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: #FF6B00; }
+
+/* ─── L1: prefers-reduced-motion — acessibilidade de movimento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
