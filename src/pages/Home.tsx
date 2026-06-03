@@ -2,7 +2,7 @@ import { ArrowRight, Star, Target, Building2, Send, Sparkles, AlertCircle, Messa
 import { Link } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { useStartups } from "../hooks/useStartups";
-import { motion, Variants } from "motion/react";
+import { motion, Variants, AnimatePresence } from "motion/react";
 import StartupIcon from "../components/StartupIcon";
 import { GooeyFilter } from "../components/GooeyFilter";
 import { PixelTrail } from "../components/PixelTrail";
