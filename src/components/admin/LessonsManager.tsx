@@ -25,8 +25,7 @@ export default function LessonsManager() {
   const [courseData, setCourseData] = useState({
     playlistUrl: '',
     level: 'iniciante' as 'iniciante' | 'intermediario' | 'avancado',
-    bonusXp: 100,
-    apiKey: ''
+    bonusXp: 100
   });
 
   
@@ -62,13 +61,10 @@ export default function LessonsManager() {
   
   const handleCreateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!courseData.apiKey) {
-      toast('Insira a chave da API do YouTube', 'error');
-      return;
-    }
     setIsCreating(true);
     try {
-      await createCourse(courseData.playlistUrl, courseData.level, courseData.bonusXp, courseData.apiKey);
+      // A chave da YouTube API vive em secret na Edge Function import-playlist.
+      await createCourse(courseData.playlistUrl, courseData.level, courseData.bonusXp);
       toast('Curso criado com sucesso!', 'success');
       setCourseData(prev => ({ ...prev, playlistUrl: '', bonusXp: 100 }));
       loadCourses();
@@ -260,10 +256,6 @@ export default function LessonsManager() {
             <div>
               <label className="text-[11px] font-black uppercase tracking-widest text-fox/70 block mb-1.5">XP Bônus (Conclusão Completa)</label>
               <input type="number" required value={courseData.bonusXp} onChange={e => setCourseData({ ...courseData, bonusXp: parseInt(e.target.value) || 0 })} className="w-full px-4 py-3 rounded-xl border border-fox/20 text-sm focus:ring-2 focus:ring-fox/40 bg-white" placeholder="Ex: 500" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-[11px] font-black uppercase tracking-widest text-fox/70 block mb-1.5">Chave da API do YouTube (v3) *</label>
-              <input type="password" required value={courseData.apiKey} onChange={e => setCourseData({ ...courseData, apiKey: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-fox/20 text-sm focus:ring-2 focus:ring-fox/40 bg-white" placeholder="AIzaSy..." />
             </div>
           </div>
           <div className="flex justify-end pt-2">

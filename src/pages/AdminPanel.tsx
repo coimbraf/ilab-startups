@@ -435,6 +435,9 @@ export default function AdminPanel() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'geral' | 'aprovacoes' | 'squads' | 'membros' | 'convites' | 'whitelist' | 'academy' | 'encontros'>('geral');
 
+  // ⚠️ Este guard é apenas UX (esconde a tela). A autorização REAL é a RLS
+  // no Supabase (supabase/policies.sql): toda escrita sensível é negada no
+  // banco para quem não é admin, mesmo que burle este componente.
   if (user?.role !== 'admin') {
     return (
       <div className="min-h-screen pt-[5rem] flex items-center justify-center bg-gray-50 px-4">
