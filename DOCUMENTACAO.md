@@ -128,6 +128,7 @@ Todas sob `RootLayout` (`<Outlet/>`):
 | `/login` | Login | público |
 | `/cadastro` | Register | público (exige convite) |
 | `/admin` | AdminPanel | admin (guard no componente) |
+| `/painel` | FounderPanel | founder com startup (tabs jornada/documentos/posts) |
 | `/forum` | ForumList | autenticado |
 | `/forum/:id` | ForumPostDetail | autenticado |
 | `/encontros` | Meetings | autenticado |
@@ -217,7 +218,7 @@ Definido em `src/index.css` via `@theme` (Tailwind v4):
 
 ## 9. Dívida Técnica & Riscos (mapeado)
 
-> **Status do hardening (branch `refactor/hardening`):** Fase 0 (higiene) e Fase 1 (segurança) concluídas. Itens marcados ✅ abaixo. **Pendência operacional:** aplicar `supabase/policies.sql` + `supabase/rpc.sql` no SQL Editor do Supabase e fazer deploy da Edge Function `import-playlist` (com secret `YOUTUBE_API_KEY`).
+> **Status do hardening (branch `refactor/hardening`):** Fases 0 (higiene), 1 (segurança) e 2 (UX) concluídas. Itens marcados ✅ abaixo. **Pendência operacional:** aplicar `supabase/policies.sql` + `supabase/rpc.sql` no SQL Editor do Supabase e fazer deploy da Edge Function `import-playlist` (com secret `YOUTUBE_API_KEY`).
 
 ### 🔴 Crítico
 1. ✅ **RLS entregue** — `supabase/policies.sql` cobre as 21 tabelas + storage (aguarda aplicação no banco). Guard de admin na UI segue sendo só UX (documentado no código).
@@ -226,8 +227,8 @@ Definido em `src/index.css` via `@theme` (Tailwind v4):
 4. ✅ **YouTube API key protegida** — Edge Function `import-playlist` com secret; campo de key removido do form do admin.
 
 ### 🟠 Alto
-5. **`FounderPanel.tsx` órfão** — página completa (458 linhas) importada por ninguém; não está no router. Ou religar ou remover. *(Fase 2)*
-6. **`prompt()`/`alert()` nativos** em `StartupDetail` para submissão e revisão, apesar de `UIContext` já ter `toast`/`confirm` prontos e bonitos. UX inconsistente. *(Fase 2)*
+5. ✅ **`FounderPanel` religado** — rota `/painel`, botão no header + menu mobile (só founders com startup).
+6. ✅ **`prompt()`/`alert()` eliminados** — modais compartilhados em `components/DeliverableModals.tsx` + toasts do UIContext em `StartupDetail`.
 7. ✅ **`googleSheetService.ts` removido** — era código morto que não compilava.
 8. **Sem tratamento de sessão expirada consistente** — vários caminhos silenciam erro.
 
@@ -239,7 +240,7 @@ Definido em `src/index.css` via `@theme` (Tailwind v4):
 13. ✅ **`antigravity-awesome-skills/`** removido.
 14. **Sem testes**, sem lint além de `tsc --noEmit`, sem CI. *(Fase 3)*
 15. **Tipos frouxos** — `any` pervasivo nos mappers; **7 erros de tsc pré-existentes** (eram 23). *(Fase 3)*
-16. Duplicação de interface `User` (em `AuthContext` e `mockData`). *(Fase 2)*
+16. ✅ **`User` unificado** — fonte única em `mockData.ts`; AuthContext re-exporta e carrega `track`. Bug de `role` passado como track corrigido em `Home.tsx`.
 17. **INSERT aberto em `notifications`** para autenticados (caveat da RLS — o front notifica outros usuários). Endurecer movendo para RPC/trigger. *(Fase 3)*
 
 ---

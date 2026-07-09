@@ -43,7 +43,7 @@ Feita e commitada em `refactor/hardening` (commit `chore: fase 0 — higiene do 
 4. ✅ Dependência morta `@google/genai` removida + `define GEMINI_API_KEY` retirado do `vite.config.ts` (e `loadEnv` órfão limpo).
 5. ✅ `googleSheetService.ts` **removido** (era código morto, não importado por ninguém e não compilava — eliminou 7 dos 23 erros de tipo).
 
-**Não refaça a Fase 0.** Comece na Fase 2.
+**Não refaça as Fases 0–2.** Comece na Fase 3.
 
 ## ✅ FASE 1 — Segurança (JÁ CONCLUÍDA)
 Feita e commitada (`feat: fase 1 — hardening de segurança`). O que existe agora:
@@ -57,12 +57,13 @@ Feita e commitada (`feat: fase 1 — hardening de segurança`). O que existe ago
 
 **IMPORTANTE:** o app só continua funcionando integralmente depois que o usuário aplicar `policies.sql` + `rpc.sql` e fizer o deploy da Edge Function — os fluxos de voto, XP, presença, cadastro (convite/whitelist) e importação de playlist agora dependem das RPCs. Se ele reportar erro "function does not exist", é porque o SQL não foi aplicado ainda.
 
-## FASE 2 — Consolidação de UX — COMEÇAR AQUI
-11. **Eliminar `prompt()`/`alert()` nativos** em `StartupDetail.tsx` (submissão e revisão de entregável). Usar o `UIContext` (`toast`/`confirm`) que já existe, e um modal de submissão com campo de link + descrição no padrão visual do `ReviewModal` do `AdminPanel`.
-12. **`FounderPanel.tsx` órfão:** decidir e executar — (a) religar no router com uma rota `/painel` protegida para founders, ou (b) remover se a jornada do founder já vive em `StartupDetail`. Recomende com base na completude da página (ela tem tabs jornada/documentos/posts).
-13. Unificar a interface `User` duplicada (`AuthContext` vs `mockData`) numa fonte só.
+## ✅ FASE 2 — Consolidação de UX (JÁ CONCLUÍDA)
+Feita e commitada (`feat: fase 2 — consolidação de UX`):
+11. ✅ `prompt()`/`alert()` eliminados de `StartupDetail`. Modais compartilhados em `src/components/DeliverableModals.tsx` (`SubmitDeliverableModal` + `ReviewDeliverableModal`) + toasts do `UIContext`.
+12. ✅ `FounderPanel` **religado** em `/painel` (decisão: a página é completa — tabs jornada/documentos/posts). Botão no header (ícone LayoutDashboard, founders com startup) + entrada no menu mobile. Modal local substituído pelo compartilhado.
+13. ✅ `User` unificado em `mockData.ts` (AuthContext re-exporta; agora carrega `track` do `user_roles`). Bônus: corrigido bug em `Home.tsx` que passava `user.role` como track ao aceitar convite de squad.
 
-## FASE 3 — Performance & Qualidade
+## FASE 3 — Performance & Qualidade — COMEÇAR AQUI
 14. **Realtime granular:** hoje qualquer mudança em 3 tabelas dispara `loadData()` completo. Otimizar para atualizar só o registro afetado no estado, ou ao menos debounce, evitando o piscar e o refetch total.
 15. Tipar os mappers e payloads do Supabase (eliminar `any` pervasivo) com interfaces de linha (`Row`) por tabela. **Zerar os 7 erros de tipo pré-existentes** listados na seção de restrições (campos `forumXp`/`attendanceXp` em `Startup`, import de `PlayCircle`, prop `title` em ícone Lucide, `.status` em `PostgrestError`).
 18. **Endurecer notifications:** remover a policy de INSERT aberto para autenticados — mover a criação de notificações (fórum reply/upvote, broadcast de encontros) para dentro das RPCs/triggers no Postgres.
@@ -79,6 +80,4 @@ Para cada fase:
 4. Resuma o diff e riscos residuais.
 5. Pare e me peça revisão antes da fase seguinte se houver decisão de produto (ex.: FounderPanel religar vs remover).
 
-Fases 0 e 1 já estão feitas — **comece pela Fase 2**. Antes de qualquer teste end-to-end, confirme com o usuário se ele já aplicou `supabase/policies.sql` + `supabase/rpc.sql` e fez o deploy da Edge Function `import-playlist` (com o secret `YOUTUBE_API_KEY`).
-
-**Prioridade: UX (Fase 2) > qualidade (Fase 3).**
+Fases 0, 1 e 2 já estão feitas — **comece pela Fase 3**. Antes de qualquer teste end-to-end, confirme com o usuário se ele já aplicou `supabase/policies.sql` + `supabase/rpc.sql` e fez o deploy da Edge Function `import-playlist` (com o secret `YOUTUBE_API_KEY`).
