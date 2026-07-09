@@ -16,8 +16,14 @@ Você vai trabalhar no **Sanfran iLab**, um portal SPA (React 19 + Vite 6 + Type
 - Edições cirúrgicas: não reescreva o que funciona só por estética de código.
 
 **Restrições de trabalho:**
-- Trabalhe em branch separado (`refactor/hardening`). Commits pequenos, mensagens `conventional` (fix/feat/refactor/chore). Não faça push sem eu pedir.
+- O branch `refactor/hardening` **já existe** e a Fase 0 já foi commitada nele. Continue nesse branch. Commits pequenos, mensagens `conventional` (fix/feat/refactor/chore). Não faça push sem eu pedir.
 - Rode `npm run lint` (tsc --noEmit) e garanta build limpo (`npm run build`) a cada etapa. **Zero erros de tipo novos.**
+- ⚠️ **Estado atual do type-check:** há **16 erros de TypeScript pré-existentes** (eram 23 antes da Fase 0). Eles NÃO foram introduzidos por você e o `vite build` passa mesmo assim (esbuild não checa tipos). Categorias:
+  - `Startup` não tem `forumXp`/`attendanceXp` mas `Home.tsx` os lê (breakdown de XP) → faltam campos no tipo + mappers.
+  - `Lessons.tsx`: `PlayCircle` usado sem import.
+  - `StartupDetail.tsx`: prop `title` passada a ícone Lucide (usar `<span title>` ou wrapper).
+  - `supabaseService.ts` (linhas ~1201, ~1372-1394): destructuring de `startups(...)` que o Supabase tipa como array — tratar como array ou `.single()`.
+  Corrija-os na **Fase 3** (tipagem). Não deixe passar de 16 para mais.
 - Não instale libs sem justificar. Nada de mudança visual de regressão — se mexer em UI, mostre antes/depois.
 - Ao mudar contrato de dados, ajuste TODOS os consumidores.
 
@@ -29,14 +35,17 @@ Elevar o sistema a **produção segura e sustentável**, corrigindo segurança, 
 
 ---
 
-## FASE 0 — Higiene do repositório (rápido, baixo risco)
-1. Remover os 8 arquivos `temp_*.txt`/`temp_*.json` da raiz e o diretório vazio `antigravity-awesome-skills/`.
-2. Arquivar/remover os 29 scripts one-off em `scripts/` (mover para `scripts/_archive/` ou deletar os obsoletos de migração). Manter só o que ainda tem uso real.
-3. Renomear `package.json` `name` de `"react-example"` para `"sanfran-ilab"`. Criar `.env.example` com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-4. Remover a dependência morta `@google/genai` e o `define GEMINI_API_KEY` do `vite.config.ts` (confirme que nada usa antes).
-5. Resolver `googleSheetService.ts`: ele referencia tipos inexistentes (`Activity`, `Deliverable`, `leaderId`, `objectives`, `activities`) e não compila com o modelo atual. **Decisão:** remover o arquivo se o import de planilha foi aposentado, OU reescrevê-lo contra os tipos atuais de `mockData.ts`. Recomende e execute.
+## ✅ FASE 0 — Higiene do repositório (JÁ CONCLUÍDA)
+Feita e commitada em `refactor/hardening` (commit `chore: fase 0 — higiene do repositório`). Para referência, o que foi feito:
+1. ✅ Removidos os 8 arquivos `temp_*` da raiz e o diretório vazio `antigravity-awesome-skills/`.
+2. ✅ Os 29 scripts one-off movidos para `scripts/_archive/` (ainda no repo, isolados — avalie se pode deletá-los de vez).
+3. ✅ `package.json` `name` → `"sanfran-ilab"`. `.env.example` criado.
+4. ✅ Dependência morta `@google/genai` removida + `define GEMINI_API_KEY` retirado do `vite.config.ts` (e `loadEnv` órfão limpo).
+5. ✅ `googleSheetService.ts` **removido** (era código morto, não importado por ninguém e não compilava — eliminou 7 dos 23 erros de tipo).
 
-## FASE 1 — Segurança (crítico)
+**Não refaça a Fase 0.** Comece na Fase 1.
+
+## FASE 1 — Segurança (crítico) — COMEÇAR AQUI
 6. **RLS:** gere um arquivo `supabase/policies.sql` documentando as Row-Level Security policies necessárias para cada tabela (admin-only writes em `startup_deliverables.review`, `invites`, `email_whitelist`; founder só edita sua startup; leitura pública controlada). Não temos acesso ao banco aqui — entregue o SQL para eu aplicar, com comentários.
 7. **Votos de fórum atômicos:** substituir a lógica cliente de `toggleForumPostVote` (read-modify-write de `upvotes`) por uma RPC Postgres (`toggle_forum_vote`) que faz insert/delete do voto e recalcula a contagem via trigger/`count`. Entregue o SQL + ajuste `supabaseService.ts` para chamar a RPC.
 8. **XP no servidor:** mover a atribuição de XP (aula, curso, presença, bônus) para RPCs transacionais (`grant_lesson_xp`, `grant_course_bonus`, `toggle_meeting_presence`) em vez dos múltiplos `update` no cliente. Entregue SQL + refatore os chamadores.
@@ -50,7 +59,7 @@ Elevar o sistema a **produção segura e sustentável**, corrigindo segurança, 
 
 ## FASE 3 — Performance & Qualidade
 14. **Realtime granular:** hoje qualquer mudança em 3 tabelas dispara `loadData()` completo. Otimizar para atualizar só o registro afetado no estado, ou ao menos debounce, evitando o piscar e o refetch total.
-15. Tipar os mappers e payloads do Supabase (eliminar `any` pervasivo) com interfaces de linha (`Row`) por tabela.
+15. Tipar os mappers e payloads do Supabase (eliminar `any` pervasivo) com interfaces de linha (`Row`) por tabela. **Zerar os 16 erros de tipo pré-existentes** listados na seção de restrições (campos `forumXp`/`attendanceXp` em `Startup`, import de `PlayCircle`, prop `title` em ícone Lucide, destructuring de arrays do Supabase).
 16. Adicionar **testes** mínimos: Vitest + React Testing Library. Cobrir `supabaseService` (mappers puros), cálculo de `totalScore`/progresso, e um smoke test de render do `Home`/`RootLayout`. Adicionar script `test`.
 17. Configurar **ESLint** (flat config) + script `lint:fix`, e um **CI GitHub Actions** rodando lint + type-check + build + test em PR.
 
@@ -64,6 +73,6 @@ Para cada fase:
 4. Resuma o diff e riscos residuais.
 5. Pare e me peça revisão antes da fase seguinte se houver decisão de produto (ex.: FounderPanel religar vs remover).
 
-Comece pela **Fase 0**, depois **Fase 1**. Não avance para a Fase 2 sem meu OK, porque as RPCs/policies dependem de eu aplicar SQL no Supabase.
+A Fase 0 já está feita — **comece pela Fase 1**. Não avance para a Fase 2 sem meu OK, porque as RPCs/policies dependem de eu aplicar SQL no Supabase.
 
-**Prioridade absoluta: segurança (Fase 1) > UX (Fase 2) > higiene (Fase 0, pode ir junto) > qualidade (Fase 3).**
+**Prioridade absoluta: segurança (Fase 1) > UX (Fase 2) > qualidade (Fase 3).**
