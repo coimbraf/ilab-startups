@@ -212,18 +212,18 @@ create policy "invites: admin tudo"
 
 -- ============================================================================
 -- NOTIFICATIONS — cada um lê/marca as suas.
--- CAVEAT CONHECIDO: o front insere notificações para OUTROS usuários
--- (resposta no fórum, upvote, broadcast de encontro). Por isso o insert é
--- liberado para autenticados. Endurecer na Fase 3 movendo os inserts para
--- dentro das RPCs/triggers.
+-- INSERT restrito a ADMIN: notificações geradas por usuários comuns
+-- (resposta no fórum, upvote) acontecem via trigger/RPC security definer
+-- (ver rpc.sql — trg_notify_forum_comment e toggle_forum_vote).
+-- Fluxos de admin (aprovação, encontros, convites) continuam inserindo direto.
 -- ============================================================================
 create policy "notifications: lê as próprias"
   on notifications for select to authenticated
   using (user_id = auth.uid());
 
-create policy "notifications: autenticado insere"
+create policy "notifications: admin insere"
   on notifications for insert to authenticated
-  with check (true);
+  with check (is_admin());
 
 create policy "notifications: marca as próprias como lidas"
   on notifications for update to authenticated

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Clock, BookOpen, CheckCircle, Tag, Trophy, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Play, PlayCircle, Clock, BookOpen, CheckCircle, Tag, Trophy, ArrowLeft, MessageSquare } from 'lucide-react';
 import { Lesson, ForumPost, Course, CourseEpisode } from '../data/mockData';
 import { ListVideo } from 'lucide-react';
 import { getLessons, getLessonProgress, markLessonCompleted, getForumPosts, getCourses, getCourseProgress, markCourseEpisodeCompleted } from '../data/supabaseService';

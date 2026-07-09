@@ -86,7 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error && error.code !== 'PGRST116') {
         console.error("Erro ao carregar perfil do usuário", error);
         // If we get a 401, the session is invalid
-        if (error.status === 401) {
+        // (PostgrestError não tipa `status`, mas o Supabase o anexa em erros HTTP)
+        if ((error as { status?: number }).status === 401) {
           console.warn("Session expired, signing out");
           setUser(null);
           setIsLoading(false);

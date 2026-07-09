@@ -530,7 +530,7 @@ export default function StartupDetail() {
                     <div>
                       <span className="flex items-center gap-1.5 font-bold text-graphite text-sm leading-tight">
                         {member.name}
-                        {member.isLeader && <Award className="w-3.5 h-3.5 text-fox" title="Responsável principal" />}
+                        {member.isLeader && <span title="Responsável principal"><Award className="w-3.5 h-3.5 text-fox" /></span>}
                       </span>
                       <span className="block text-xs font-medium text-fox mt-0.5">
                         {member.role === 'Outro' && member.customRole ? member.customRole : member.role}

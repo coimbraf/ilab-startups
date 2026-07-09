@@ -616,17 +616,9 @@ export async function createForumComment(comment: {
 
   if (error) throw error;
 
-  // Notification trigger (notify author of the post)
-  const { data: postData } = await supabase.from('forum_posts').select('author_id, title').eq('id', comment.postId).single();
-  if (postData && postData.author_id !== comment.authorId) {
-    await createNotification(
-      postData.author_id,
-      'Nova Resposta no Fórum',
-      `${comment.authorName} respondeu ao seu tópico: "${postData.title}".`,
-      'forum_reply',
-      `/forum/${comment.postId}`
-    );
-  }
+  // A notificação ao autor do post é gerada no servidor pela trigger
+  // trg_notify_forum_comment (ver supabase/rpc.sql) — INSERT em
+  // notifications é fechado para não-admins.
 
   return data.id;
 }
@@ -649,31 +641,14 @@ export async function deleteForumPost(postId: string) {
   if (error) throw error;
 }
 
-export async function toggleForumPostVote(postId: string, userId: string): Promise<boolean> {
+export async function toggleForumPostVote(postId: string, _userId: string): Promise<boolean> {
   if (!supabase) throw new Error('Supabase não configurado.');
 
   // Voto atômico no servidor (RPC security definer — ver supabase/rpc.sql).
-  // A recontagem de upvotes acontece lá; o cliente nunca escreve a contagem.
+  // A recontagem de upvotes E a notificação ao autor acontecem lá;
+  // o cliente nunca escreve contagem nem insere notificação.
   const { data: added, error } = await supabase.rpc('toggle_forum_vote', { p_post_id: postId });
   if (error) throw error;
-
-  if (added) {
-    // Notification trigger (apenas quando o voto foi adicionado)
-    const { data: postData } = await supabase.from('forum_posts').select('author_id, title').eq('id', postId).single();
-    if (postData && postData.author_id !== userId) {
-      // Pega o nome de quem deu upvote pra ficar mais legal
-      const { data: voterData } = await supabase.from('user_roles').select('startups(name)').eq('id', userId).single();
-      const voterName = (voterData?.startups as any)?.name || 'Alguém';
-
-      await createNotification(
-        postData.author_id,
-        'Novo Upvote!',
-        `${voterName} curtiu o seu tópico: "${postData.title}".`,
-        'forum_upvote',
-        `/forum/${postId}`
-      );
-    }
-  }
 
   return !!added;
 }
@@ -737,9 +712,97 @@ export async function uploadFile(
   return urlData.publicUrl;
 }
 
-// ─── Mappers Internos ─────────────────────────────────────────────────────────
+// ─── Tipos de Linha (snake_case, como vêm do Postgres) ────────────────────────
 
-function mapStartup(s: any): Startup {
+export interface StartupMemberRow {
+  id: string;
+  name: string;
+  role: string;
+  custom_role?: string | null;
+  is_leader?: boolean | null;
+  avatar_url?: string | null;
+  user_roles?: {
+    academy_xp?: number | null;
+    forum_xp?: number | null;
+    attendance_xp?: number | null;
+  } | null;
+}
+
+export interface StartupDeliverableRow {
+  id: string;
+  type_id: string;
+  status: string;
+  evidence_url?: string | null;
+  evidence_notes?: string | null;
+  description?: string | null;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  xp_earned?: number | null;
+}
+
+export interface StartupRow {
+  id: string;
+  name: string;
+  description?: string | null;
+  logo_url?: string | null;
+  cover_image_url?: string | null;
+  short_pitch?: string | null;
+  sector?: string | null;
+  website_url?: string | null;
+  linkedin_url?: string | null;
+  pitch_url?: string | null;
+  cohort?: string | null;
+  leader_phone?: string | null;
+  instagram_url?: string | null;
+  status?: string | null;
+  academy_xp?: number | null;
+  forum_xp?: number | null;
+  attendance_xp?: number | null;
+  startup_members?: StartupMemberRow[] | null;
+  startup_deliverables?: StartupDeliverableRow[] | null;
+}
+
+export interface StartupPostRow {
+  id: string;
+  startup_id: string;
+  author_id?: string | null;
+  title: string;
+  body?: string | null;
+  cover_image_url?: string | null;
+  tags?: string[] | null;
+  is_published?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface StartupDocumentRow {
+  id: string;
+  startup_id: string;
+  deliverable_type_id?: string | null;
+  name: string;
+  file_url: string;
+  file_type: string;
+  file_size_bytes?: number | null;
+  description?: string | null;
+  uploaded_by?: string | null;
+  created_at?: string | null;
+}
+
+// ─── Mappers Internos (exportados para testes) ───────────────────────────────
+
+export function mapStartup(s: StartupRow): Startup {
+  // XP de entregáveis aprovados (calculado a partir das linhas do join)
+  const deliverablesXp = (s.startup_deliverables || [])
+    .filter((d) => d.status === 'approved')
+    .reduce((sum, d) => sum + (d.xp_earned || 0), 0);
+
+  // XP de engajamento do squad (colunas agregadas na tabela startups,
+  // atualizadas pelas RPCs — ver supabase/rpc.sql)
+  const academyXp = s.academy_xp || 0;
+  const forumXp = s.forum_xp || 0;
+  const attendanceXp = s.attendance_xp || 0;
+
   return {
     id: s.id,
     name: s.name,
@@ -754,39 +817,67 @@ function mapStartup(s: any): Startup {
     cohort: s.cohort,
     leaderPhone: s.leader_phone,
     instagramUrl: s.instagram_url,
-    totalScore: (s.startup_deliverables || [])
-      .filter((d: any) => d.status === 'approved')
-      .reduce((sum: number, d: any) => sum + (d.xp_earned || 0), 0),
+    // XP Duplo: o ranking soma entregáveis + academy + fórum + eventos.
+    // (Antes só contava entregáveis e o breakdown da Home ficava zerado.)
+    totalScore: deliverablesXp + academyXp + forumXp + attendanceXp,
+    academyXp,
+    forumXp,
+    attendanceXp,
     status: s.status || 'Pendente',
-    members: (s.startup_members || []).map((m: any) => ({
-      id: m.id, name: m.name, role: m.role,
-      customRole: m.custom_role, isLeader: m.is_leader, avatarUrl: m.avatar_url, academyXp: m.user_roles?.academy_xp || 0, forumXp: m.user_roles?.forum_xp || 0, attendanceXp: m.user_roles?.attendance_xp || 0
+    members: (s.startup_members || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      role: m.role as Startup['members'][number]['role'],
+      customRole: m.custom_role || undefined,
+      isLeader: !!m.is_leader,
+      avatarUrl: m.avatar_url || undefined,
+      academyXp: m.user_roles?.academy_xp || 0,
+      forumXp: m.user_roles?.forum_xp || 0,
+      attendanceXp: m.user_roles?.attendance_xp || 0
     })),
-    deliverables: (s.startup_deliverables || []).map((d: any) => ({
-      id: d.id, typeId: d.type_id, status: d.status,
-      evidenceUrl: d.evidence_url, evidenceNotes: d.evidence_notes,
-      description: d.description, submittedAt: d.submitted_at,
-      reviewedAt: d.reviewed_at, reviewedBy: d.reviewed_by,
-      xpEarned: d.xp_earned, type: deliverableTypes[d.type_id]
+    deliverables: (s.startup_deliverables || []).map((d) => ({
+      id: d.id,
+      typeId: d.type_id,
+      status: d.status as Startup['deliverables'][number]['status'],
+      evidenceUrl: d.evidence_url || undefined,
+      evidenceNotes: d.evidence_notes || undefined,
+      description: d.description || undefined,
+      submittedAt: d.submitted_at || undefined,
+      reviewedAt: d.reviewed_at || undefined,
+      reviewedBy: d.reviewed_by || undefined,
+      xpEarned: d.xp_earned || 0,
+      type: deliverableTypes[d.type_id]
     }))
   };
 }
 
-function mapPost(p: any): StartupPost {
+export function mapPost(p: StartupPostRow): StartupPost {
   return {
-    id: p.id, startupId: p.startup_id, authorId: p.author_id,
-    title: p.title, body: p.body, coverImageUrl: p.cover_image_url,
-    tags: p.tags || [], isPublished: p.is_published,
-    createdAt: p.created_at, updatedAt: p.updated_at
+    id: p.id,
+    startupId: p.startup_id,
+    authorId: p.author_id || undefined,
+    title: p.title,
+    body: p.body || undefined,
+    coverImageUrl: p.cover_image_url || undefined,
+    tags: p.tags || [],
+    isPublished: !!p.is_published,
+    createdAt: p.created_at || undefined,
+    updatedAt: p.updated_at || undefined
   };
 }
 
-function mapDocument(d: any): StartupDocument {
+export function mapDocument(d: StartupDocumentRow): StartupDocument {
   return {
-    id: d.id, startupId: d.startup_id, deliverableTypeId: d.deliverable_type_id,
-    name: d.name, fileUrl: d.file_url, fileType: d.file_type,
-    fileSizeBytes: d.file_size_bytes, description: d.description,
-    uploadedBy: d.uploaded_by, createdAt: d.created_at
+    id: d.id,
+    startupId: d.startup_id,
+    deliverableTypeId: d.deliverable_type_id || undefined,
+    name: d.name,
+    fileUrl: d.file_url,
+    fileType: d.file_type,
+    fileSizeBytes: d.file_size_bytes || undefined,
+    description: d.description || undefined,
+    uploadedBy: d.uploaded_by || undefined,
+    createdAt: d.created_at || undefined
   };
 }
 

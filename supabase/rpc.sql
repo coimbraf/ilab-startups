@@ -39,9 +39,62 @@ begin
      set upvotes = (select count(*) from forum_post_votes where post_id = p_post_id)
    where id = p_post_id;
 
+  -- Notificação de upvote (server-side — o INSERT em notifications é
+  -- fechado para não-admins; ver policies.sql)
+  if v_added then
+    insert into notifications (user_id, title, message, type, link, is_read)
+    select fp.author_id,
+           'Novo Upvote!',
+           coalesce(s.name, 'Alguém') || ' curtiu o seu tópico: "' || fp.title || '".',
+           'forum_upvote',
+           '/forum/' || p_post_id,
+           false
+      from forum_posts fp
+      left join user_roles ur on ur.id = v_user
+      left join startups s on s.id = ur.startup_id
+     where fp.id = p_post_id
+       and fp.author_id is not null
+       and fp.author_id <> v_user;
+  end if;
+
   return v_added;
 end;
 $$;
+
+-- ─── 1b. NOTIFICAÇÃO DE COMENTÁRIO NO FÓRUM (trigger) ───────────────────────
+-- O INSERT do comentário continua vindo do front (com RLS de autoria);
+-- a notificação ao autor do post é gerada aqui, no servidor.
+create or replace function public.notify_forum_comment()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_post forum_posts%rowtype;
+begin
+  select * into v_post from forum_posts where id = new.post_id;
+
+  if found and v_post.author_id is not null and v_post.author_id <> new.author_id then
+    insert into notifications (user_id, title, message, type, link, is_read)
+    values (
+      v_post.author_id,
+      'Nova Resposta no Fórum',
+      new.author_name || ' respondeu ao seu tópico: "' || v_post.title || '".',
+      'forum_reply',
+      '/forum/' || new.post_id,
+      false
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_forum_comment on forum_comments;
+create trigger trg_notify_forum_comment
+  after insert on forum_comments
+  for each row execute function public.notify_forum_comment();
 
 -- ─── 2. XP DE AULA (individual + squad, transacional) ────────────────────────
 -- Substitui markLessonCompleted. O XP vem da TABELA aulas (nunca do cliente).
