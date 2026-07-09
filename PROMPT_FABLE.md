@@ -63,7 +63,15 @@ Feita e commitada (`feat: fase 2 — consolidação de UX`):
 12. ✅ `FounderPanel` **religado** em `/painel` (decisão: a página é completa — tabs jornada/documentos/posts). Botão no header (ícone LayoutDashboard, founders com startup) + entrada no menu mobile. Modal local substituído pelo compartilhado.
 13. ✅ `User` unificado em `mockData.ts` (AuthContext re-exporta; agora carrega `track` do `user_roles`). Bônus: corrigido bug em `Home.tsx` que passava `user.role` como track ao aceitar convite de squad.
 
-## FASE 3 — Performance & Qualidade — COMEÇAR AQUI
+## ✅ FASE 3 — Performance & Qualidade (JÁ CONCLUÍDA)
+Feita e commitada (`feat: fase 3`). Resumo: realtime granular com debounce por startup; interfaces Row + tsc 0 erros (mapStartup corrigido — XP Duplo completo no totalScore); notifications endurecida (INSERT admin-only, upvote na RPC, comentário via trigger); Vitest 13 testes; ESLint 0 erros; CI GitHub Actions.
+
+**TODAS AS FASES (0–3) ESTÃO CONCLUÍDAS.** O que resta é operacional (usuário) e melhoria contínua:
+- ⚠️ Aplicar `supabase/policies.sql` + `supabase/rpc.sql` no SQL Editor (nesta ordem).
+- ⚠️ Deploy da Edge Function: `supabase functions deploy import-playlist` + `supabase secrets set YOUTUBE_API_KEY=...`.
+- Melhoria contínua: reduzir os ~169 warnings de ESLint (any/setState-in-effect), code-splitting do bundle (>500kB), tratamento consistente de sessão expirada.
+
+Detalhes do que era o escopo original da fase:
 14. **Realtime granular:** hoje qualquer mudança em 3 tabelas dispara `loadData()` completo. Otimizar para atualizar só o registro afetado no estado, ou ao menos debounce, evitando o piscar e o refetch total.
 15. Tipar os mappers e payloads do Supabase (eliminar `any` pervasivo) com interfaces de linha (`Row`) por tabela. **Zerar os 7 erros de tipo pré-existentes** listados na seção de restrições (campos `forumXp`/`attendanceXp` em `Startup`, import de `PlayCircle`, prop `title` em ícone Lucide, `.status` em `PostgrestError`).
 18. **Endurecer notifications:** remover a policy de INSERT aberto para autenticados — mover a criação de notificações (fórum reply/upvote, broadcast de encontros) para dentro das RPCs/triggers no Postgres.
@@ -80,4 +88,4 @@ Para cada fase:
 4. Resuma o diff e riscos residuais.
 5. Pare e me peça revisão antes da fase seguinte se houver decisão de produto (ex.: FounderPanel religar vs remover).
 
-Fases 0, 1 e 2 já estão feitas — **comece pela Fase 3**. Antes de qualquer teste end-to-end, confirme com o usuário se ele já aplicou `supabase/policies.sql` + `supabase/rpc.sql` e fez o deploy da Edge Function `import-playlist` (com o secret `YOUTUBE_API_KEY`).
+**Todas as fases (0–3) estão concluídas.** Se você foi acionado com este prompt, o trabalho restante é: (a) apoiar o usuário na aplicação do SQL/deploy da Edge Function, (b) testes end-to-end pós-aplicação, e (c) melhoria contínua listada na Fase 3. Antes de qualquer teste end-to-end, confirme se o usuário já aplicou `supabase/policies.sql` + `supabase/rpc.sql` e fez o deploy da Edge Function `import-playlist` (com o secret `YOUTUBE_API_KEY`).

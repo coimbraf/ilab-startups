@@ -218,7 +218,8 @@ Definido em `src/index.css` via `@theme` (Tailwind v4):
 
 ## 9. Dívida Técnica & Riscos (mapeado)
 
-> **Status do hardening (branch `refactor/hardening`):** Fases 0 (higiene), 1 (segurança) e 2 (UX) concluídas. Itens marcados ✅ abaixo. **Pendência operacional:** aplicar `supabase/policies.sql` + `supabase/rpc.sql` no SQL Editor do Supabase e fazer deploy da Edge Function `import-playlist` (com secret `YOUTUBE_API_KEY`).
+> **Status do hardening (branch `refactor/hardening`):** TODAS as fases (0–3) concluídas. Itens marcados ✅ abaixo. **Pendência operacional:** aplicar `supabase/policies.sql` + `supabase/rpc.sql` no SQL Editor do Supabase e fazer deploy da Edge Function `import-playlist` (com secret `YOUTUBE_API_KEY`).
+> **Qualidade atual:** tsc 0 erros · ESLint 0 erros · 13/13 testes Vitest · CI GitHub Actions · build ✓.
 
 ### 🔴 Crítico
 1. ✅ **RLS entregue** — `supabase/policies.sql` cobre as 21 tabelas + storage (aguarda aplicação no banco). Guard de admin na UI segue sendo só UX (documentado no código).
@@ -233,15 +234,15 @@ Definido em `src/index.css` via `@theme` (Tailwind v4):
 8. **Sem tratamento de sessão expirada consistente** — vários caminhos silenciam erro.
 
 ### 🟡 Médio
-9. **Realtime recarrega tudo** (`loadData` completo) a cada mudança em 3 tabelas → refetch pesado e piscar. *(Fase 3)*
+9. ✅ **Realtime granular** — eventos atualizam só a startup afetada (fetch by id + merge + debounce 300ms); reload completo apenas como fallback.
 10. ✅ **`package.json` renomeado** para `sanfran-ilab`; `.env.example` criado.
 11. ✅ **Scripts one-off arquivados** em `scripts/_archive/`; arquivos `temp_*` removidos.
 12. ✅ **`@google/genai` + `GEMINI_API_KEY`** removidos.
 13. ✅ **`antigravity-awesome-skills/`** removido.
-14. **Sem testes**, sem lint além de `tsc --noEmit`, sem CI. *(Fase 3)*
-15. **Tipos frouxos** — `any` pervasivo nos mappers; **7 erros de tsc pré-existentes** (eram 23). *(Fase 3)*
+14. ✅ **Testes + lint + CI** — Vitest (13 testes: mappers/XP Duplo/UIContext), ESLint flat config (0 erros; regras do React Compiler como warning para migração gradual), GitHub Actions (tsc+eslint+test+build).
+15. ✅ **Tipagem** — interfaces `Row` nos mappers (exportados p/ teste); **tsc com 0 erros** (baseline era 23). `mapStartup` corrigido: agora mapeia academyXp/forumXp/attendanceXp (antes o breakdown ficava zerado) e `totalScore` soma o XP Duplo completo.
 16. ✅ **`User` unificado** — fonte única em `mockData.ts`; AuthContext re-exporta e carrega `track`. Bug de `role` passado como track corrigido em `Home.tsx`.
-17. **INSERT aberto em `notifications`** para autenticados (caveat da RLS — o front notifica outros usuários). Endurecer movendo para RPC/trigger. *(Fase 3)*
+17. ✅ **`notifications` endurecida** — INSERT admin-only; upvote notifica dentro da RPC `toggle_forum_vote` e comentários via trigger `trg_notify_forum_comment`.
 
 ---
 
