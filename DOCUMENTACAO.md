@@ -217,27 +217,30 @@ Definido em `src/index.css` via `@theme` (Tailwind v4):
 
 ## 9. Dívida Técnica & Riscos (mapeado)
 
+> **Status do hardening (branch `refactor/hardening`):** Fase 0 (higiene) e Fase 1 (segurança) concluídas. Itens marcados ✅ abaixo. **Pendência operacional:** aplicar `supabase/policies.sql` + `supabase/rpc.sql` no SQL Editor do Supabase e fazer deploy da Edge Function `import-playlist` (com secret `YOUTUBE_API_KEY`).
+
 ### 🔴 Crítico
-1. **Segurança 100% dependente de RLS do Supabase.** A `anon key` está no bundle; qualquer proteção real precisa de Row-Level Security no banco. Papel de admin é validado só no cliente (`user.role !== 'admin'`).
-2. **Votos de fórum contados no cliente** (`toggleForumPostVote` lê `upvotes`, soma 1, grava) → race condition / manipulável. Deveria ser trigger/RPC atômica.
-3. **XP calculado e gravado no cliente** (academy/curso/presença) → passível de fraude e de inconsistência (dois `update` sem transação).
-4. **YouTube API key trafega do cliente** (`createCourse(apiKey)`) → exposição de chave.
+1. ✅ **RLS entregue** — `supabase/policies.sql` cobre as 21 tabelas + storage (aguarda aplicação no banco). Guard de admin na UI segue sendo só UX (documentado no código).
+2. ✅ **Votos de fórum atômicos** — RPC `toggle_forum_vote` com recontagem canônica; front refatorado.
+3. ✅ **XP no servidor** — RPCs `complete_lesson`, `complete_course_episode`, `set_meeting_presence` (transacionais, idempotentes, valores lidos do banco); front refatorado, `addEngagementXp` removido.
+4. ✅ **YouTube API key protegida** — Edge Function `import-playlist` com secret; campo de key removido do form do admin.
 
 ### 🟠 Alto
-5. **`FounderPanel.tsx` órfão** — página completa (458 linhas) importada por ninguém; não está no router. Ou religar ou remover.
-6. **`prompt()`/`alert()` nativos** em `StartupDetail` para submissão e revisão, apesar de `UIContext` já ter `toast`/`confirm` prontos e bonitos. UX inconsistente.
-7. **`googleSheetService.ts` desatualizado** — referencia tipos inexistentes (`Activity`, `Deliverable`, `leaderId`, `objectives`, `activities`) que não existem no `mockData` atual → **não compila / código morto**.
+5. **`FounderPanel.tsx` órfão** — página completa (458 linhas) importada por ninguém; não está no router. Ou religar ou remover. *(Fase 2)*
+6. **`prompt()`/`alert()` nativos** em `StartupDetail` para submissão e revisão, apesar de `UIContext` já ter `toast`/`confirm` prontos e bonitos. UX inconsistente. *(Fase 2)*
+7. ✅ **`googleSheetService.ts` removido** — era código morto que não compilava.
 8. **Sem tratamento de sessão expirada consistente** — vários caminhos silenciam erro.
 
 ### 🟡 Médio
-9. **Realtime recarrega tudo** (`loadData` completo) a cada mudança em 3 tabelas → refetch pesado e piscar.
-10. **`package.json name: "react-example"`** não renomeado; sem `.env.example` presente.
-11. **29 scripts one-off** em `scripts/` + **8 arquivos `temp_*`** versionados na raiz → poluição do repo.
-12. **`@google/genai` + `GEMINI_API_KEY`** declarados e nunca usados.
-13. **`antigravity-awesome-skills/`** diretório vazio no repo.
-14. **Sem testes**, sem lint além de `tsc --noEmit`, sem CI.
-15. **Tipos frouxos** — uso pervasivo de `any` nos mappers e payloads Supabase.
-16. Duplicação de interface `User` (em `AuthContext` e `mockData`).
+9. **Realtime recarrega tudo** (`loadData` completo) a cada mudança em 3 tabelas → refetch pesado e piscar. *(Fase 3)*
+10. ✅ **`package.json` renomeado** para `sanfran-ilab`; `.env.example` criado.
+11. ✅ **Scripts one-off arquivados** em `scripts/_archive/`; arquivos `temp_*` removidos.
+12. ✅ **`@google/genai` + `GEMINI_API_KEY`** removidos.
+13. ✅ **`antigravity-awesome-skills/`** removido.
+14. **Sem testes**, sem lint além de `tsc --noEmit`, sem CI. *(Fase 3)*
+15. **Tipos frouxos** — `any` pervasivo nos mappers; **7 erros de tsc pré-existentes** (eram 23). *(Fase 3)*
+16. Duplicação de interface `User` (em `AuthContext` e `mockData`). *(Fase 2)*
+17. **INSERT aberto em `notifications`** para autenticados (caveat da RLS — o front notifica outros usuários). Endurecer movendo para RPC/trigger. *(Fase 3)*
 
 ---
 
