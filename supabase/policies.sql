@@ -167,6 +167,12 @@ create policy "forum_posts: autor ou admin edita"
   using (author_id = auth.uid() or is_admin())
   with check (author_id = auth.uid() or is_admin());
 
+-- Privilégio de COLUNA: a policy acima filtra linhas, não colunas — sem isto
+-- o autor conseguia editar upvotes do próprio post (brecha achada em teste).
+-- A RPC toggle_forum_vote (security definer) segue escrevendo upvotes.
+revoke update on forum_posts from authenticated;
+grant update (title, body, category, tags) on forum_posts to authenticated;
+
 create policy "forum_posts: autor ou admin deleta"
   on forum_posts for delete to authenticated
   using (author_id = auth.uid() or is_admin());

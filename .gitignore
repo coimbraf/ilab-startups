@@ -7,7 +7,6 @@ coverage/
 .env*
 !.env.example
 .claude
-.env.example
 .gemini/
 supabase/.temp/
 supabase/.branches/

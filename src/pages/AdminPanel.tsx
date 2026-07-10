@@ -401,13 +401,12 @@ function ApprovalsManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <AnimatePresence mode="popLayout">
                 {pending.map(item => (
-                  <React.Fragment key={item.id}>
-                    <PendingCard
-                      item={item}
-                      onApprove={(i) => handleOpenModal(i, 'approved')}
-                      onReject={(i) => handleOpenModal(i, 'rejected')}
-                    />
-                  </React.Fragment>
+                  <PendingCard
+                    key={item.id}
+                    item={item}
+                    onApprove={(i) => handleOpenModal(i, 'approved')}
+                    onReject={(i) => handleOpenModal(i, 'rejected')}
+                  />
                 ))}
               </AnimatePresence>
             </div>

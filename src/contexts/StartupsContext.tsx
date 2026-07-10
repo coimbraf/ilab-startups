@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Startup, mockStartups } from '../data/mockData';
 import { fetchStartupsFromSupabase, fetchStartupById, supabase } from '../data/supabaseService';
+import { useAuth } from './AuthContext';
 
 const CACHE_KEY = '@sanfranilab:startups';
 
@@ -22,8 +23,21 @@ export function StartupsProvider({ children }: { children: ReactNode }) {
   const [startups, setStartups] = useState<Startup[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  // Com RLS, o SELECT anônimo é negado — os dados precisam ser (re)carregados
+  // quando o usuário loga/desloga, não só no mount.
+  const { user } = useAuth();
 
   const loadData = useCallback(async () => {
+    // Sem sessão, a RLS nega o SELECT — não adianta bater no banco nem poluir
+    // o console com erro. O RootLayout já redireciona para /login.
+    if (supabase) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsLoading(false);
+        return;
+      }
+    }
+
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       try {
@@ -132,7 +146,9 @@ export function StartupsProvider({ children }: { children: ReactNode }) {
         pendingRefresh.current.clear();
       };
     }
-  }, [loadData, queueRefresh]);
+    // user?.id nas deps: refaz a busca (agora autenticada) e re-assina o
+    // realtime após login/logout — sem isso, com RLS o app fica nos mocks.
+  }, [loadData, queueRefresh, user?.id]);
 
   return (
     <StartupsContext.Provider value={{ startups, isLoading, error, refetch: loadData }}>
