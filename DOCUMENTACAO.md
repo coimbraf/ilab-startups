@@ -218,8 +218,11 @@ Definido em `src/index.css` via `@theme` (Tailwind v4):
 
 ## 9. Dívida Técnica & Riscos (mapeado)
 
-> **Status do hardening (branch `refactor/hardening`):** TODAS as fases (0–3) concluídas. Itens marcados ✅ abaixo. **Pendência operacional:** aplicar `supabase/policies.sql` + `supabase/rpc.sql` no SQL Editor do Supabase e fazer deploy da Edge Function `import-playlist` (com secret `YOUTUBE_API_KEY`).
+> **Status do hardening (branch `refactor/hardening`):** TODAS as fases (0–3) concluídas **e validadas end-to-end contra uma instância Supabase real**. Itens marcados ✅ abaixo.
 > **Qualidade atual:** tsc 0 erros · ESLint 0 erros · 13/13 testes Vitest · CI GitHub Actions · build ✓.
+> **Setup do banco:** `supabase/schema.sql` → `policies.sql` → `rpc.sql` (guia em `supabase/APLICAR.md`). Edge Function `import-playlist` precisa de deploy + secret `YOUTUBE_API_KEY`.
+>
+> **Testes end-to-end executados (✅ todos passaram):** login admin/founder · ranking com XP Duplo · voto atômico (0→1→0) · comentário + notificação via trigger · aprovação de entregável (+80 XP refletido no ranking) · submissão de entregável (founder) · RPCs de convite/whitelist. **Segurança (4 ataques via API direta):** auto-aprovar entregável → 403 · virar admin → ignorado pela RLS · inflar XP do squad → ignorado · inflar upvotes → brecha achada e **corrigida** (privilégio de coluna).
 
 ### 🔴 Crítico
 1. ✅ **RLS entregue** — `supabase/policies.sql` cobre as 21 tabelas + storage (aguarda aplicação no banco). Guard de admin na UI segue sendo só UX (documentado no código).
