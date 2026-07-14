@@ -18,11 +18,12 @@ import {
 import { useStartups } from "../hooks/useStartups";
 import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
-import { motion } from "motion/react";
-import { useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { useEffect, useState } from "react";
 import confetti from "canvas-confetti";
 import StartupIcon from "../components/StartupIcon";
 import { deliverableTypes } from "../data/mockData";
+import { SubmitDeliverableModal, ReviewDeliverableModal } from "../components/DeliverableModals";
 
 /* ─── Skeleton do perfil ─────────────────────────────────── */
 function ProfileSkeleton() {
@@ -78,6 +79,10 @@ export default function StartupDetail() {
   const { id } = useParams();
   const { startups, isLoading, refetch } = useStartups();
   const { user } = useAuth();
+
+  // Modais de entregável (substituem os antigos prompt() nativos)
+  const [submitTypeId, setSubmitTypeId] = useState<string | null>(null);
+  const [reviewState, setReviewState] = useState<{ typeId: string; action: 'approved' | 'rejected' } | null>(null);
 
   const startup = startups.find((s) => s.id === id);
 
@@ -450,28 +455,14 @@ export default function StartupDetail() {
                             {/* Admin Controls */}
                             {authLevel === 3 && isSubmitted && (
                               <div className="flex gap-2 w-full sm:w-auto">
-                                <button 
-                                  onClick={async () => {
-                                    const notes = prompt("Observações da aprovação (opcional):");
-                                    if (notes !== null) {
-                                      const { reviewDeliverable } = await import('../data/supabaseService');
-                                      await reviewDeliverable(startup.id, type.id, 'approved', notes, type.xpValue, user?.name || 'Admin');
-                                      await refetch();
-                                    }
-                                  }}
+                                <button
+                                  onClick={() => setReviewState({ typeId: type.id, action: 'approved' })}
                                   className="flex-1 sm:flex-none text-[10px] font-bold text-white bg-teal hover:bg-teal/90 px-3 py-1.5 rounded-md transition-all uppercase tracking-wider"
                                 >
                                   Aprovar
                                 </button>
-                                <button 
-                                  onClick={async () => {
-                                    const notes = prompt("Motivo da rejeição (obrigatório):");
-                                    if (notes) {
-                                      const { reviewDeliverable } = await import('../data/supabaseService');
-                                      await reviewDeliverable(startup.id, type.id, 'rejected', notes, type.xpValue, user?.name || 'Admin');
-                                      await refetch();
-                                    }
-                                  }}
+                                <button
+                                  onClick={() => setReviewState({ typeId: type.id, action: 'rejected' })}
                                   className="flex-1 sm:flex-none text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-md transition-all uppercase tracking-wider"
                                 >
                                   Rejeitar
@@ -480,21 +471,8 @@ export default function StartupDetail() {
                             )}
                           </div>
                         ) : authLevel >= 2 ? (
-                          <button 
-                            onClick={async () => {
-                              const url = prompt(`Cole o link da evidência para o entregável "${type.title}":\n(Link do Drive, site, vídeo, etc.)`);
-                              if (url) {
-                                const description = prompt(`Descreva brevemente o que foi realizado (opcional):`) || '';
-                                try {
-                                  const { submitDeliverable } = await import('../data/supabaseService');
-                                  await submitDeliverable(startup.id, type.id, url, description);
-                                  toast('Entregável enviado para análise com sucesso!', 'success');
-                                  await refetch();
-                                } catch (err: any) {
-                                  toast('Erro ao enviar: ' + err.message, 'error');
-                                }
-                              }
-                            }}
+                          <button
+                            onClick={() => setSubmitTypeId(type.id)}
                             className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-navy hover:bg-navy/90 px-4 py-2 rounded-lg shadow-md transition-all active:scale-95 w-full sm:w-auto"
                           >
                             Enviar Entrega
@@ -552,7 +530,7 @@ export default function StartupDetail() {
                     <div>
                       <span className="flex items-center gap-1.5 font-bold text-graphite text-sm leading-tight">
                         {member.name}
-                        {member.isLeader && <Award className="w-3.5 h-3.5 text-fox" title="Responsável principal" />}
+                        {member.isLeader && <span title="Responsável principal"><Award className="w-3.5 h-3.5 text-fox" /></span>}
                       </span>
                       <span className="block text-xs font-medium text-fox mt-0.5">
                         {member.role === 'Outro' && member.customRole ? member.customRole : member.role}
@@ -565,6 +543,40 @@ export default function StartupDetail() {
           </motion.div>
         </div>
       </div>
+
+      {/* ── Modais de Entregável ─────────────────────────────── */}
+      <AnimatePresence>
+        {submitTypeId && (
+          <SubmitDeliverableModal
+            typeId={submitTypeId}
+            startupId={startup.id}
+            onClose={() => setSubmitTypeId(null)}
+            onSaved={async () => {
+              toast('Entregável enviado para análise com sucesso!', 'success');
+              await refetch();
+            }}
+          />
+        )}
+        {reviewState && (
+          <ReviewDeliverableModal
+            typeId={reviewState.typeId}
+            startupId={startup.id}
+            startupName={startup.name}
+            action={reviewState.action}
+            adminName={user?.name || 'Admin'}
+            onClose={() => setReviewState(null)}
+            onSaved={async () => {
+              toast(
+                reviewState.action === 'approved'
+                  ? 'Entregável aprovado com sucesso!'
+                  : 'Entregável rejeitado.',
+                reviewState.action === 'approved' ? 'success' : 'info'
+              );
+              await refetch();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Clock, BookOpen, CheckCircle, Tag, Trophy, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Play, PlayCircle, Clock, BookOpen, CheckCircle, Tag, Trophy, ArrowLeft, MessageSquare } from 'lucide-react';
 import { Lesson, ForumPost, Course, CourseEpisode } from '../data/mockData';
 import { ListVideo } from 'lucide-react';
 import { getLessons, getLessonProgress, markLessonCompleted, getForumPosts, getCourses, getCourseProgress, markCourseEpisodeCompleted } from '../data/supabaseService';
@@ -161,7 +161,7 @@ export default function Lessons() {
     if (percent > 0.85 && !completedEpisodes.has(episode.id)) {
       setCompletedEpisodes(prev => new Set(prev).add(episode.id));
       setTotalXp(prev => prev + episode.xp);
-      await markCourseEpisodeCompleted(episode.id, courseId, episode.xp);
+      await markCourseEpisodeCompleted(episode.id);
     }
   };
 
@@ -171,7 +171,7 @@ export default function Lessons() {
       setCompletedIds(prev => new Set(prev).add(lesson.id));
       const earned = lesson.type === 'externo' && lesson.xp ? lesson.xp : 0;
       setTotalXp(prev => prev + earned);
-      await markLessonCompleted(lesson.id, earned);
+      await markLessonCompleted(lesson.id);
       // Optional: add a small toast/confetti here
     }
   };

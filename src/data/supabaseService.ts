@@ -616,17 +616,9 @@ export async function createForumComment(comment: {
 
   if (error) throw error;
 
-  // Notification trigger (notify author of the post)
-  const { data: postData } = await supabase.from('forum_posts').select('author_id, title').eq('id', comment.postId).single();
-  if (postData && postData.author_id !== comment.authorId) {
-    await createNotification(
-      postData.author_id,
-      'Nova Resposta no Fórum',
-      `${comment.authorName} respondeu ao seu tópico: "${postData.title}".`,
-      'forum_reply',
-      `/forum/${comment.postId}`
-    );
-  }
+  // A notificação ao autor do post é gerada no servidor pela trigger
+  // trg_notify_forum_comment (ver supabase/rpc.sql) — INSERT em
+  // notifications é fechado para não-admins.
 
   return data.id;
 }
@@ -649,49 +641,16 @@ export async function deleteForumPost(postId: string) {
   if (error) throw error;
 }
 
-export async function toggleForumPostVote(postId: string, userId: string): Promise<boolean> {
+export async function toggleForumPostVote(postId: string, _userId: string): Promise<boolean> {
   if (!supabase) throw new Error('Supabase não configurado.');
 
-  // Verifica se o usuário já votou
-  const { data: existingVote } = await supabase
-    .from('forum_post_votes')
-    .select('post_id')
-    .eq('post_id', postId)
-    .eq('user_id', userId)
-    .maybeSingle();
+  // Voto atômico no servidor (RPC security definer — ver supabase/rpc.sql).
+  // A recontagem de upvotes E a notificação ao autor acontecem lá;
+  // o cliente nunca escreve contagem nem insere notificação.
+  const { data: added, error } = await supabase.rpc('toggle_forum_vote', { p_post_id: postId });
+  if (error) throw error;
 
-  // Pega contagem atual (para fallback caso a trigger não exista)
-  const { data: post } = await supabase.from('forum_posts').select('upvotes').eq('id', postId).single();
-  const currentVotes = post?.upvotes || 0;
-
-  if (existingVote) {
-    // Remove o voto
-    await supabase.from('forum_post_votes').delete().match({ post_id: postId, user_id: userId });
-    await supabase.from('forum_posts').update({ upvotes: Math.max(0, currentVotes - 1) }).eq('id', postId);
-    return false; // Voto removido
-  } else {
-    // Adiciona o voto
-    await supabase.from('forum_post_votes').insert({ post_id: postId, user_id: userId });
-    await supabase.from('forum_posts').update({ upvotes: currentVotes + 1 }).eq('id', postId);
-
-    // Notification trigger
-    const { data: postData } = await supabase.from('forum_posts').select('author_id, title').eq('id', postId).single();
-    if (postData && postData.author_id !== userId) {
-      // Pega o nome de quem deu upvote pra ficar mais legal
-      const { data: voterData } = await supabase.from('user_roles').select('startups(name)').eq('id', userId).single();
-      const voterName = voterData?.startups?.name || 'Alguém';
-      
-      await createNotification(
-        postData.author_id,
-        'Novo Upvote!',
-        `${voterName} curtiu o seu tópico: "${postData.title}".`,
-        'forum_upvote',
-        `/forum/${postId}`
-      );
-    }
-
-    return true; // Voto adicionado
-  }
+  return !!added;
 }
 
 // ─── Documentos ──────────────────────────────────────────────────────────────
@@ -753,9 +712,97 @@ export async function uploadFile(
   return urlData.publicUrl;
 }
 
-// ─── Mappers Internos ─────────────────────────────────────────────────────────
+// ─── Tipos de Linha (snake_case, como vêm do Postgres) ────────────────────────
 
-function mapStartup(s: any): Startup {
+export interface StartupMemberRow {
+  id: string;
+  name: string;
+  role: string;
+  custom_role?: string | null;
+  is_leader?: boolean | null;
+  avatar_url?: string | null;
+  user_roles?: {
+    academy_xp?: number | null;
+    forum_xp?: number | null;
+    attendance_xp?: number | null;
+  } | null;
+}
+
+export interface StartupDeliverableRow {
+  id: string;
+  type_id: string;
+  status: string;
+  evidence_url?: string | null;
+  evidence_notes?: string | null;
+  description?: string | null;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  xp_earned?: number | null;
+}
+
+export interface StartupRow {
+  id: string;
+  name: string;
+  description?: string | null;
+  logo_url?: string | null;
+  cover_image_url?: string | null;
+  short_pitch?: string | null;
+  sector?: string | null;
+  website_url?: string | null;
+  linkedin_url?: string | null;
+  pitch_url?: string | null;
+  cohort?: string | null;
+  leader_phone?: string | null;
+  instagram_url?: string | null;
+  status?: string | null;
+  academy_xp?: number | null;
+  forum_xp?: number | null;
+  attendance_xp?: number | null;
+  startup_members?: StartupMemberRow[] | null;
+  startup_deliverables?: StartupDeliverableRow[] | null;
+}
+
+export interface StartupPostRow {
+  id: string;
+  startup_id: string;
+  author_id?: string | null;
+  title: string;
+  body?: string | null;
+  cover_image_url?: string | null;
+  tags?: string[] | null;
+  is_published?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface StartupDocumentRow {
+  id: string;
+  startup_id: string;
+  deliverable_type_id?: string | null;
+  name: string;
+  file_url: string;
+  file_type: string;
+  file_size_bytes?: number | null;
+  description?: string | null;
+  uploaded_by?: string | null;
+  created_at?: string | null;
+}
+
+// ─── Mappers Internos (exportados para testes) ───────────────────────────────
+
+export function mapStartup(s: StartupRow): Startup {
+  // XP de entregáveis aprovados (calculado a partir das linhas do join)
+  const deliverablesXp = (s.startup_deliverables || [])
+    .filter((d) => d.status === 'approved')
+    .reduce((sum, d) => sum + (d.xp_earned || 0), 0);
+
+  // XP de engajamento do squad (colunas agregadas na tabela startups,
+  // atualizadas pelas RPCs — ver supabase/rpc.sql)
+  const academyXp = s.academy_xp || 0;
+  const forumXp = s.forum_xp || 0;
+  const attendanceXp = s.attendance_xp || 0;
+
   return {
     id: s.id,
     name: s.name,
@@ -770,39 +817,67 @@ function mapStartup(s: any): Startup {
     cohort: s.cohort,
     leaderPhone: s.leader_phone,
     instagramUrl: s.instagram_url,
-    totalScore: (s.startup_deliverables || [])
-      .filter((d: any) => d.status === 'approved')
-      .reduce((sum: number, d: any) => sum + (d.xp_earned || 0), 0),
+    // XP Duplo: o ranking soma entregáveis + academy + fórum + eventos.
+    // (Antes só contava entregáveis e o breakdown da Home ficava zerado.)
+    totalScore: deliverablesXp + academyXp + forumXp + attendanceXp,
+    academyXp,
+    forumXp,
+    attendanceXp,
     status: s.status || 'Pendente',
-    members: (s.startup_members || []).map((m: any) => ({
-      id: m.id, name: m.name, role: m.role,
-      customRole: m.custom_role, isLeader: m.is_leader, avatarUrl: m.avatar_url, academyXp: m.user_roles?.academy_xp || 0, forumXp: m.user_roles?.forum_xp || 0, attendanceXp: m.user_roles?.attendance_xp || 0
+    members: (s.startup_members || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      role: m.role as Startup['members'][number]['role'],
+      customRole: m.custom_role || undefined,
+      isLeader: !!m.is_leader,
+      avatarUrl: m.avatar_url || undefined,
+      academyXp: m.user_roles?.academy_xp || 0,
+      forumXp: m.user_roles?.forum_xp || 0,
+      attendanceXp: m.user_roles?.attendance_xp || 0
     })),
-    deliverables: (s.startup_deliverables || []).map((d: any) => ({
-      id: d.id, typeId: d.type_id, status: d.status,
-      evidenceUrl: d.evidence_url, evidenceNotes: d.evidence_notes,
-      description: d.description, submittedAt: d.submitted_at,
-      reviewedAt: d.reviewed_at, reviewedBy: d.reviewed_by,
-      xpEarned: d.xp_earned, type: deliverableTypes[d.type_id]
+    deliverables: (s.startup_deliverables || []).map((d) => ({
+      id: d.id,
+      typeId: d.type_id,
+      status: d.status as Startup['deliverables'][number]['status'],
+      evidenceUrl: d.evidence_url || undefined,
+      evidenceNotes: d.evidence_notes || undefined,
+      description: d.description || undefined,
+      submittedAt: d.submitted_at || undefined,
+      reviewedAt: d.reviewed_at || undefined,
+      reviewedBy: d.reviewed_by || undefined,
+      xpEarned: d.xp_earned || 0,
+      type: deliverableTypes[d.type_id]
     }))
   };
 }
 
-function mapPost(p: any): StartupPost {
+export function mapPost(p: StartupPostRow): StartupPost {
   return {
-    id: p.id, startupId: p.startup_id, authorId: p.author_id,
-    title: p.title, body: p.body, coverImageUrl: p.cover_image_url,
-    tags: p.tags || [], isPublished: p.is_published,
-    createdAt: p.created_at, updatedAt: p.updated_at
+    id: p.id,
+    startupId: p.startup_id,
+    authorId: p.author_id || undefined,
+    title: p.title,
+    body: p.body || undefined,
+    coverImageUrl: p.cover_image_url || undefined,
+    tags: p.tags || [],
+    isPublished: !!p.is_published,
+    createdAt: p.created_at || undefined,
+    updatedAt: p.updated_at || undefined
   };
 }
 
-function mapDocument(d: any): StartupDocument {
+export function mapDocument(d: StartupDocumentRow): StartupDocument {
   return {
-    id: d.id, startupId: d.startup_id, deliverableTypeId: d.deliverable_type_id,
-    name: d.name, fileUrl: d.file_url, fileType: d.file_type,
-    fileSizeBytes: d.file_size_bytes, description: d.description,
-    uploadedBy: d.uploaded_by, createdAt: d.created_at
+    id: d.id,
+    startupId: d.startup_id,
+    deliverableTypeId: d.deliverable_type_id || undefined,
+    name: d.name,
+    fileUrl: d.file_url,
+    fileType: d.file_type,
+    fileSizeBytes: d.file_size_bytes || undefined,
+    description: d.description || undefined,
+    uploadedBy: d.uploaded_by || undefined,
+    createdAt: d.created_at || undefined
   };
 }
 
@@ -890,16 +965,16 @@ export async function invalidateInvite(id: string) {
   if (error) throw error;
 }
 
-export async function validateInviteCode(code: string) {
+export async function validateInviteCode(code: string): Promise<{ valid: boolean; reason?: string; inviteId?: string }> {
   if (!supabase) throw new Error('Supabase não configurado.');
-  const { data, error } = await supabase.from('invites').select('*').eq('code', code).single();
-  
-  if (error || !data) return { valid: false, reason: 'Código inválido ou não encontrado.' };
-  if (!data.active) return { valid: false, reason: 'Este convite foi desativado.' };
-  if (new Date(data.expires_at) < new Date()) return { valid: false, reason: 'Este convite já expirou.' };
-  if (data.used_count >= data.max_uses) return { valid: false, reason: 'Este convite já atingiu o limite de usos.' };
 
-  return { valid: true, invite: data };
+  // A tabela `invites` é fechada por RLS. A validação pré-cadastro (anon)
+  // roda via RPC security definer que só devolve o necessário
+  // (ver supabase/rpc.sql — validate_invite).
+  const { data, error } = await supabase.rpc('validate_invite', { p_code: code });
+  if (error) return { valid: false, reason: 'Erro ao validar convite.' };
+
+  return { valid: !!data?.valid, reason: data?.reason, inviteId: data?.invite_id };
 }
 
 export async function registerWithInvitePayload(payload: {
@@ -908,7 +983,7 @@ export async function registerWithInvitePayload(payload: {
   if (!supabase) throw new Error('Supabase não configurado.');
 
   const validation = await validateInviteCode(payload.code);
-  if (!validation.valid || !validation.invite) throw new Error(validation.reason);
+  if (!validation.valid || !validation.inviteId) throw new Error(validation.reason || 'Convite inválido.');
 
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: payload.email,
@@ -932,13 +1007,10 @@ export async function registerWithInvitePayload(payload: {
   });
   if (roleError) throw roleError;
 
-  const { error: inviteError } = await supabase.rpc('increment_invite_usage', { invite_id: validation.invite.id });
-  
-  if (inviteError) {
-    await supabase.from('invites')
-      .update({ used_count: validation.invite.used_count + 1 })
-      .eq('id', validation.invite.id);
-  }
+  // Consumo atômico do convite (com revalidação server-side — ver rpc.sql).
+  // Sem fallback de update direto: a tabela invites é fechada por RLS.
+  const { error: inviteError } = await supabase.rpc('increment_invite_usage', { invite_id: validation.inviteId });
+  if (inviteError) throw inviteError;
 }
 
 // ─── Notificações ────────────────────────────────────────────────────────────
@@ -1080,53 +1152,17 @@ export async function getLessonProgress() {
   return data || [];
 }
 
-export async function markLessonCompleted(aulaId: string, xpEarned: number = 0) {
-  if (!supabase) return;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+export async function markLessonCompleted(aulaId: string): Promise<number> {
+  if (!supabase) return 0;
 
-  const { error } = await supabase
-    .from('aula_progress')
-    .insert({
-      user_id: user.id,
-      aula_id: aulaId,
-      completed: true,
-      xp_earned: xpEarned
-    });
-
+  // XP transacional no servidor (RPC security definer — ver supabase/rpc.sql).
+  // O valor do XP vem da tabela `aulas`, nunca do cliente. Idempotente.
+  const { data: xpGranted, error } = await supabase.rpc('complete_lesson', { p_aula_id: aulaId });
   if (error) {
     console.error('Erro ao salvar progresso:', error);
-    return;
+    return 0;
   }
-
-  if (xpEarned > 0) {
-    // 1. Get user_role to find current academy_xp and startup_id
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('academy_xp, startup_id')
-      .eq('id', user.id)
-      .single();
-
-    if (userRole) {
-      // 2. Add XP to user_roles
-      const newIndividualXp = (userRole.academy_xp || 0) + xpEarned;
-      await supabase.from('user_roles').update({ academy_xp: newIndividualXp }).eq('id', user.id);
-
-      // 3. If they have a squad, add XP to startups
-      if (userRole.startup_id) {
-        const { data: startup } = await supabase
-          .from('startups')
-          .select('academy_xp')
-          .eq('id', userRole.startup_id)
-          .single();
-          
-        if (startup) {
-          const newSquadXp = (startup.academy_xp || 0) + xpEarned;
-          await supabase.from('startups').update({ academy_xp: newSquadXp }).eq('id', userRole.startup_id);
-        }
-      }
-    }
-  }
+  return xpGranted || 0;
 }
 
 
@@ -1180,28 +1216,12 @@ export async function getAllUserEmails(): Promise<string[]> {
 
 export async function checkEmailWhitelisted(email: string): Promise<boolean> {
   if (!supabase) throw new Error('Supabase não configurado.');
-  const { data, error } = await supabase.from('email_whitelist').select('email').eq('email', email.toLowerCase()).maybeSingle();
+
+  // A tabela email_whitelist é fechada por RLS — a checagem pré-cadastro
+  // roda via RPC que não expõe a lista (ver supabase/rpc.sql).
+  const { data, error } = await supabase.rpc('is_email_whitelisted', { p_email: email });
   if (error) throw error;
   return !!data;
-}
-
-export async function addEngagementXp(userId: string, category: 'forum' | 'attendance', amount: number) {
-  if (!supabase) return;
-  const xpCol = category === 'forum' ? 'forum_xp' : 'attendance_xp';
-
-  // Fetch current user xp
-  const { data: user } = await supabase.from('user_roles').select(`${xpCol}, startups(id, ${xpCol})`).eq('id', userId).single();
-  if (!user) return;
-
-  const newMemberXp = (user[xpCol] || 0) + amount;
-  await supabase.from('user_roles').update({ [xpCol]: newMemberXp }).eq('id', userId);
-
-  // If user is in a startup, update startup xp
-  if (user.startups && user.startups.id) {
-    const startupId = user.startups.id;
-    const newStartupXp = (user.startups[xpCol] || 0) + amount;
-    await supabase.from('startups').update({ [xpCol]: newStartupXp }).eq('id', startupId);
-  }
 }
 
 export async function getMeetingPresences(meetingId: string) {
@@ -1212,17 +1232,16 @@ export async function getMeetingPresences(meetingId: string) {
 
 export async function markMeetingPresence(meetingId: string, userId: string, present: boolean) {
   if (!supabase) return;
-  if (present) {
-    const { error } = await supabase.from('meeting_presences').insert({ meeting_id: meetingId, user_id: userId });
-    if (!error) {
-      await addEngagementXp(userId, 'attendance', 100);
-    }
-  } else {
-    const { error } = await supabase.from('meeting_presences').delete().match({ meeting_id: meetingId, user_id: userId });
-    if (!error) {
-      await addEngagementXp(userId, 'attendance', -100);
-    }
-  }
+
+  // Presença + XP (±100) numa transação só, admin-only no servidor
+  // (RPC security definer — ver supabase/rpc.sql). Substitui o antigo
+  // addEngagementXp feito no cliente.
+  const { error } = await supabase.rpc('set_meeting_presence', {
+    p_meeting_id: meetingId,
+    p_user_id: userId,
+    p_present: present
+  });
+  if (error) throw error;
 }
 
 // ==========================================
@@ -1244,88 +1263,19 @@ export async function getCourseById(id: string) {
   return data;
 }
 
-export async function createCourse(playlistUrl: string, level: 'iniciante' | 'intermediario' | 'avancado', bonusXp: number, apiKey: string) {
+export async function createCourse(playlistUrl: string, level: 'iniciante' | 'intermediario' | 'avancado', bonusXp: number) {
   if (!supabase) return;
-  
-  // Extract Playlist ID
-  let playlistId = playlistUrl;
-  const match = playlistUrl.match(/[?&]list=([^&]+)/);
-  if (match) {
-    playlistId = match[1];
-  }
 
-  // 1. Fetch Playlist Title/Description from YT API
-  const plRes = await fetch(`https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${playlistId}&key=${apiKey}`);
-  const plData = await plRes.json();
-  if (!plData.items || plData.items.length === 0) throw new Error('Playlist não encontrada.');
-  const title = plData.items[0].snippet.title;
-  const description = plData.items[0].snippet.description || '';
-
-  // 2. Fetch Playlist Items
-  let items: any[] = [];
-  let nextPageToken = '';
-  do {
-    const itemsRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${playlistId}&key=${apiKey}${nextPageToken ? '&pageToken=' + nextPageToken : ''}`);
-    const itemsData = await itemsRes.json();
-    items = items.concat(itemsData.items || []);
-    nextPageToken = itemsData.nextPageToken;
-  } while (nextPageToken);
-
-  // 3. Create Course
-  const { data: course, error: courseErr } = await supabase.from('courses').insert({
-    title,
-    description,
-    playlist_id: playlistId,
-    level,
-    bonus_xp: bonusXp
-  }).select().single();
-
-  if (courseErr) throw courseErr;
-
-  // 4. Fetch Durations for all videos
-  const videoIds = items.map(i => i.contentDetails.videoId);
-  // YT API limits to 50 ids per request
-  let videoDurations: Record<string, string> = {};
-  for (let i = 0; i < videoIds.length; i += 50) {
-    const batch = videoIds.slice(i, i + 50).join(',');
-    const vRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${batch}&key=${apiKey}`);
-    const vData = await vRes.json();
-    (vData.items || []).forEach((v: any) => {
-      videoDurations[v.id] = v.contentDetails.duration; // PT15M33S
-    });
-  }
-
-  const parseDuration = (pt: string) => {
-    let minutes = 0;
-    let match = pt.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-    if (match) {
-      const h = parseInt(match[1] || '0', 10);
-      const m = parseInt(match[2] || '0', 10);
-      minutes = (h * 60) + m + (parseInt(match[3] || '0', 10) > 30 ? 1 : 0);
-    }
-    return minutes === 0 ? 1 : minutes;
-  };
-
-  const levelMultiplier = level === 'avancado' ? 3 : (level === 'intermediario' ? 2 : 1);
-
-  // 5. Insert Episodes
-  const episodesToInsert = items.map((item, idx) => {
-    const vId = item.contentDetails.videoId;
-    const durMins = parseDuration(videoDurations[vId] || 'PT5M');
-    return {
-      course_id: course.id,
-      title: item.snippet.title,
-      description: item.snippet.description || '',
-      youtube_id: vId,
-      duration_minutes: durMins,
-      xp: durMins * levelMultiplier,
-      order_index: idx
-    };
+  // A importação roda na Edge Function `import-playlist` — a chave da
+  // YouTube Data API fica em secret no servidor e NUNCA trafega pelo cliente.
+  // Ver supabase/functions/import-playlist/index.ts.
+  const { data, error } = await supabase.functions.invoke('import-playlist', {
+    body: { playlistUrl, level, bonusXp }
   });
 
-  if (episodesToInsert.length > 0) {
-    await supabase.from('course_episodes').insert(episodesToInsert);
-  }
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
 }
 
 export async function deleteCourse(id: string) {
@@ -1346,54 +1296,15 @@ export async function getCourseProgress() {
   return (data || []).map((row: any) => row.episode_id);
 }
 
-export async function markCourseEpisodeCompleted(episodeId: string, courseId: string, xpEarned: number) {
-  if (!supabase) return;
-  const { data: session } = await supabase.auth.getSession();
-  if (!session?.session?.user) return;
-  const userId = session.session.user.id;
+export async function markCourseEpisodeCompleted(episodeId: string): Promise<{ episodeXp: number; bonusXp: number }> {
+  if (!supabase) return { episodeXp: 0, bonusXp: 0 };
 
-  // Check if already completed
-  const { data: existing } = await supabase.from('course_episode_progress').select('*').eq('user_id', userId).eq('episode_id', episodeId).maybeSingle();
-  if (existing && existing.completed) return; // Already rewarded
-
-  // Upsert progress
-  await supabase.from('course_episode_progress').upsert({
-    user_id: userId,
-    episode_id: episodeId,
-    course_id: courseId,
-    completed: true,
-    completed_at: new Date().toISOString()
-  }, { onConflict: 'user_id, episode_id' });
-
-  // Add individual XP
-  const { data: userRoles } = await supabase.from('user_roles').select('academy_xp, startups(id, academy_xp)').eq('id', userId).single();
-  if (userRoles) {
-    await supabase.from('user_roles').update({ academy_xp: (userRoles.academy_xp || 0) + xpEarned }).eq('id', userId);
-    if (userRoles.startups && userRoles.startups.id) {
-      await supabase.from('startups').update({ academy_xp: (userRoles.startups.academy_xp || 0) + xpEarned }).eq('id', userRoles.startups.id);
-    }
+  // XP do episódio + bônus de conclusão numa transação só no servidor
+  // (RPC security definer — ver supabase/rpc.sql). Valores vêm do banco.
+  const { data, error } = await supabase.rpc('complete_course_episode', { p_episode_id: episodeId });
+  if (error) {
+    console.error('Erro ao salvar progresso do episódio:', error);
+    return { episodeXp: 0, bonusXp: 0 };
   }
-
-  // Check if entire course is completed
-  const [ { count: totalEps }, { count: compEps }, { data: course } ] = await Promise.all([
-    supabase.from('course_episodes').select('id', { count: 'exact', head: true }).eq('course_id', courseId),
-    supabase.from('course_episode_progress').select('id', { count: 'exact', head: true }).eq('course_id', courseId).eq('user_id', userId).eq('completed', true),
-    supabase.from('courses').select('bonus_xp').eq('id', courseId).single()
-  ]);
-
-  if (totalEps && compEps && totalEps === compEps && course && course.bonus_xp > 0) {
-    // Check if bonus was already granted
-    const { data: bonusLog } = await supabase.from('course_completions').select('id').eq('user_id', userId).eq('course_id', courseId).maybeSingle();
-    if (!bonusLog) {
-      await supabase.from('course_completions').insert({ user_id: userId, course_id: courseId });
-      // Grant bonus XP
-      const { data: ur2 } = await supabase.from('user_roles').select('academy_xp, startups(id, academy_xp)').eq('id', userId).single();
-      if (ur2) {
-        await supabase.from('user_roles').update({ academy_xp: (ur2.academy_xp || 0) + course.bonus_xp }).eq('id', userId);
-        if (ur2.startups && ur2.startups.id) {
-          await supabase.from('startups').update({ academy_xp: (ur2.startups.academy_xp || 0) + course.bonus_xp }).eq('id', ur2.startups.id);
-        }
-      }
-    }
-  }
+  return { episodeXp: data?.episode_xp || 0, bonusXp: data?.bonus_xp || 0 };
 }

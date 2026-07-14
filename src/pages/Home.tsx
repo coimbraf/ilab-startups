@@ -79,7 +79,8 @@ export default function Home() {
 
   const handleRespondInvite = async (invite: SquadInvite, accept: boolean) => {
     try {
-      await respondToSquadInvite(invite.id, accept, user!.id, invite.startup_id, user!.name, user!.role);
+      // track = trilha do membro (Tech/Negócios) — antes passava user.role por engano
+      await respondToSquadInvite(invite.id, accept, user!.id, invite.startup_id, user!.name, user!.track || 'Outro');
       setInvites(prev => prev.filter(i => i.id !== invite.id));
       if (accept) {
         toast(`Você entrou no squad: ${invite.startup_name}`, 'info');

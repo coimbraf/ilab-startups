@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Startup, StartupPost, StartupDocument, deliverableTypes } from '../data/mockData';
-import { fetchStartupById, getPosts, createPost, updatePost, deletePost, getDocuments, createDocument, deleteDocument, submitDeliverable } from '../data/supabaseService';
+import { fetchStartupById, getPosts, createPost, updatePost, deletePost, getDocuments, createDocument, deleteDocument } from '../data/supabaseService';
+import { SubmitDeliverableModal } from '../components/DeliverableModals';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, Loader2, CheckCircle, Clock, FileText, Image as ImageIcon, Plus, Edit3, Trash2, ExternalLink, X, Navigation } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
@@ -146,7 +147,7 @@ export default function FounderPanel() {
           />
         )}
         {isDeliverableModalOpen && selectedDeliverableType && (
-          <DeliverableModal
+          <SubmitDeliverableModal
             typeId={selectedDeliverableType}
             startupId={startup.id}
             onClose={() => { setIsDeliverableModalOpen(false); setSelectedDeliverableType(null); }}
@@ -302,85 +303,6 @@ function PostsTab({ posts, onOpenModal, onDelete }: { posts: StartupPost[], onOp
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Modal de Submissão de Entregável ──────────────────────────────────────────
-function DeliverableModal({ typeId, startupId, onClose, onSaved }: { typeId: string, startupId: string, onClose: () => void, onSaved: () => void }) {
-  const { isSessionValid } = useAuth();
-  const [url, setUrl] = useState('');
-  const [description, setDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const type = deliverableTypes[typeId];
-
-  const handleSubmit = async () => {
-    if (type.requiresLink && !url) {
-      setError('Link da evidência é obrigatório.');
-      return;
-    }
-
-    // Check session validity before submission
-    const sessionValid = await isSessionValid();
-    if (!sessionValid) {
-      setError('Sua sessão expirou. Por favor, faça login novamente.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      await submitDeliverable(startupId, typeId, url, description);
-      onSaved();
-      onClose();
-    } catch (err: any) {
-      const errorMsg = err.message || err.toString();
-
-      // Handle RLS/Auth specific errors
-      if (errorMsg.includes('row-level security policy') || errorMsg.includes('policy')) {
-        setError('Erro: Sua conta não tem permissão para enviar entregáveis. Verifique se você está vinculado como founder da startup.');
-      } else if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
-        setError('Erro: Sua sessão expirou. Por favor, faça login novamente.');
-      } else {
-        setError(`Erro ao enviar: ${errorMsg}`);
-      }
-      console.error("[DeliverableModal] Error:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl w-full max-w-lg p-6">
-        <h3 className="font-bold text-xl text-navy mb-1">Submeter: {type.title}</h3>
-        <p className="text-sm text-gray-500 mb-6">{type.description}</p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Link da Evidência {type.requiresLink ? '*' : '(Opcional)'}</label>
-            <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Descrição Breve (Opcional)</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Explique o que foi feito..." className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
-          </div>
-        </div>
-
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 hover:bg-gray-100 rounded-xl text-sm">Cancelar</button>
-          <button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 py-3 text-white font-bold bg-navy hover:bg-navy/90 rounded-xl text-sm flex items-center justify-center gap-2">
-            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />} Enviar
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

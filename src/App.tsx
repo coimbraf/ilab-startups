@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import StartupDetail from "./pages/StartupDetail";
 import Login from "./pages/Login";
 import AdminPanel from "./pages/AdminPanel";
+import FounderPanel from "./pages/FounderPanel";
 import ForumList from "./pages/ForumList";
 import ForumPostDetail from "./pages/ForumPostDetail";
 import Meetings from "./pages/Meetings";
@@ -42,6 +43,10 @@ const router = createBrowserRouter([
       {
         path: "admin",
         element: <AdminPanel />,
+      },
+      {
+        path: "painel",
+        element: <FounderPanel />,
       },
       {
         path: "forum",

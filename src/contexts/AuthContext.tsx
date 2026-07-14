@@ -1,16 +1,10 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User as MockUser } from '../data/mockData';
+import { User } from '../data/mockData';
 import { supabase } from '../data/supabaseService';
 
-// Reusing MockUser interface for backwards compatibility with the UI, 
-// but we will populate it from Supabase auth and user_roles table.
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'founder' | 'public';
-  startupId?: string;
-}
+// Fonte única do tipo User: src/data/mockData.ts (re-exportado aqui
+// para não quebrar imports existentes).
+export type { User } from '../data/mockData';
 
 interface AuthContextType {
   user: User | null;
@@ -84,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Busca a role e a startup do usuário na tabela user_roles
       const { data, error } = await supabase
         .from('user_roles')
-        .select('role, startup_id')
+        .select('role, startup_id, track')
         .eq('id', authUser.id)
         .single();
 
@@ -92,7 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error && error.code !== 'PGRST116') {
         console.error("Erro ao carregar perfil do usuário", error);
         // If we get a 401, the session is invalid
-        if (error.status === 401) {
+        // (PostgrestError não tipa `status`, mas o Supabase o anexa em erros HTTP)
+        if ((error as { status?: number }).status === 401) {
           console.warn("Session expired, signing out");
           setUser(null);
           setIsLoading(false);
@@ -105,7 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
         email: authUser.email,
         role: data?.role || 'public',
-        startupId: data?.startup_id || undefined
+        startupId: data?.startup_id || undefined,
+        track: data?.track || undefined
       });
     } catch (e) {
       console.error("Error loading user profile:", e);

@@ -12,6 +12,8 @@ export interface StartupMember {
   isLeader: boolean;
   avatarUrl?: string;
   academyXp?: number;
+  forumXp?: number;
+  attendanceXp?: number;
 }
 
 export interface DeliverableType {
@@ -110,6 +112,8 @@ export interface Startup {
   startup_deliverables?: any[];
   totalScore: number;
   academyXp?: number;
+  forumXp?: number;
+  attendanceXp?: number;
   status: string;
   members: StartupMember[];
   deliverables: StartupDeliverable[];

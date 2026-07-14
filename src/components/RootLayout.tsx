@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LogIn, LogOut, Instagram, Linkedin, Mail, Menu, X, Bell, ChevronDown, Check, Settings } from "lucide-react";
+import { LogIn, LogOut, Instagram, Linkedin, Mail, Menu, X, Bell, ChevronDown, Check, Settings, LayoutDashboard } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../contexts/AuthContext";
@@ -376,6 +376,18 @@ export default function RootLayout() {
                   </Link>
                 )}
 
+                {/* Botão Painel do Founder */}
+                {user.role === "founder" && user.startupId && (
+                  <Link
+                    to="/painel"
+                    className="relative flex items-center justify-center text-xs font-black border border-gold/70 text-gold w-8 h-8 rounded-full hover:bg-gold/10 active:scale-95 transition-all"
+                    aria-label="Painel da Startup"
+                    title="Painel da Startup"
+                  >
+                    <LayoutDashboard className="w-4 h-4" aria-hidden="true" />
+                  </Link>
+                )}
+
                 <button
                   onClick={logout}
                   className="flex items-center gap-2 text-xs font-bold border border-fox/70 text-fox px-3.5 py-1.5 rounded-full hover:bg-fox/10 active:scale-95 transition-all"
@@ -521,6 +533,20 @@ export default function RootLayout() {
                   >
                     iLab Academy
                   </Link>
+                  {user?.role === "founder" && user.startupId && (
+                    <Link
+                      to="/painel"
+                      className={cn(
+                        "block px-4 py-3 rounded-xl font-bold text-sm transition-colors duration-150",
+                        isActive("/painel")
+                          ? "text-fox bg-fox/10"
+                          : "text-cream/75 hover:text-fox hover:bg-white/5"
+                      )}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Painel da Startup
+                    </Link>
+                  )}
                 </motion.div>
 
                 {user && (

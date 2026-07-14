@@ -401,13 +401,12 @@ function ApprovalsManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <AnimatePresence mode="popLayout">
                 {pending.map(item => (
-                  <React.Fragment key={item.id}>
-                    <PendingCard
-                      item={item}
-                      onApprove={(i) => handleOpenModal(i, 'approved')}
-                      onReject={(i) => handleOpenModal(i, 'rejected')}
-                    />
-                  </React.Fragment>
+                  <PendingCard
+                    key={item.id}
+                    item={item}
+                    onApprove={(i) => handleOpenModal(i, 'approved')}
+                    onReject={(i) => handleOpenModal(i, 'rejected')}
+                  />
                 ))}
               </AnimatePresence>
             </div>
@@ -435,6 +434,9 @@ export default function AdminPanel() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'geral' | 'aprovacoes' | 'squads' | 'membros' | 'convites' | 'whitelist' | 'academy' | 'encontros'>('geral');
 
+  // ⚠️ Este guard é apenas UX (esconde a tela). A autorização REAL é a RLS
+  // no Supabase (supabase/policies.sql): toda escrita sensível é negada no
+  // banco para quem não é admin, mesmo que burle este componente.
   if (user?.role !== 'admin') {
     return (
       <div className="min-h-screen pt-[5rem] flex items-center justify-center bg-gray-50 px-4">
